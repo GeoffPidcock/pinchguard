@@ -1,0 +1,34 @@
+[project]
+name = "pinchguard"
+version = "0.1.0"
+description = "Passive black-box behavioural predictor for alignment drift (Concern A: data logging + schema)."
+requires-python = ">=3.11"
+dependencies = [
+    "inspect-ai>=0.3.50",
+    "fastapi",
+    "uvicorn",
+    "pydantic>=2",
+    "aiosmtpd",
+    "httpx",
+    "numpy",
+]
+
+[project.optional-dependencies]
+capture = [
+    "torch",
+    "transformers",
+    "accelerate",
+    "nnsight",
+    "nnterp",
+]
+analysis = [
+    "scikit-learn",
+    "polars",
+    "matplotlib",
+]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

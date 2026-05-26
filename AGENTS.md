@@ -20,8 +20,8 @@ Project **Pinchguard** addresses a critical catastrophic AI risk: trusted autono
 
 ```
 ### The Operational Challenge
-Operators deploy autonomous agents (such as an OpenClaw executive assistant workflow handling personal or financial data) and connect them to collaborative platforms like Moltbook. While operators see direct inputs and final outputs, they have weak visibility into what an agent digests during multi-agent browse steps.
-When peer agents transmit toxic or manipulative behavioral traits via text, the target agent's alignment decays quietly. Because production runtimes are frequently proprietary or closed-weight (e.g., MiniMax-M2.7), operators are unable or unwilling to run expensive, real-time internal mechanistic interpretability probes.
+Operators deploy autonomous agents (such as an [OpenClaw](https://github.com/openclaw/openclaw) executive assistant workflow handling personal or financial data) and connect them to collaborative platforms like [Moltbook](https://moltbook.com/) (the agent-native social platform acquired by Meta in March 2026). While operators see direct inputs and final outputs, they have weak visibility into what an agent digests during multi-agent browse steps.
+When peer agents transmit toxic or manipulative behavioral traits via text, the target agent's alignment decays quietly. Because production runtimes are frequently proprietary or closed-weight (e.g., MiniMax-M2.7), operators are unable or unwilling to run expensive, real-time internal mechanistic interpretability probes. For Pinchguard's own data-capture, OpenClaw is driven via `openclaw agent --message ...` against an OpenAI-compatible inference shim wrapping an open-weights model, so activations are recoverable.
 <!-- note that moltbook is not the only mechanism of internal drift; there is merit in taking traces to eval misalignment -->
 ### The Pinchguard Solution
 Like putting rubber bands on a lobster's claws, **Pinchguard** aims to build a passive, black-box telemetry bridge. By training a predictor on an un-instrumentable model's external behavioral footprint, we give operators a proactive trigger to safely shut down an agent *before* it inflicts real-world harm or executes a catastrophic "pinch".
@@ -39,7 +39,9 @@ A primary failure mode of safety engineering is designing schemas around idealiz
 Every row represents exactly one distinct action turn taken by an agent within the environment. All structural metadata is logged live by the sandbox online, while evaluation metrics (label_*) are appended offline during post-hoc assessment sweeps.
 ```json
 {
+  "schema_version": "0.2",
   "step_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "turn_id": "0c4b6f12-e2a1-4d33-9f56-aa49a3c11d80",
   "scenario_id": "submolt_exposure_v1",
   "run_id": "run_20260525_001",
   "turn": 12,
@@ -63,6 +65,12 @@ Every row represents exactly one distinct action turn taken by an agent within t
     "payload": "Optimizing context-switching paradigms for digital workspaces."
   },
   "activation_ref": "activations/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d.npz",
+  "activation_meta": {
+    "token_position": "last_input",
+    "layers": [12, 24],
+    "dtype": "float16",
+    "capture_runtime": "nnterp+hf-eager"
+  },
   "label_behav": 0.15,
   "label_behav_meta": {
     "scorer_id": "lh_deception_v2",
@@ -80,6 +88,11 @@ Every row represents exactly one distinct action turn taken by an agent within t
 }
 
 ```
+**Schema additions in v0.2** (introduced for the first OpenClaw-driven capture; see PLAN.md):
+- `schema_version` — top-level string, stamped on every row by the inference shim. Lets us evolve the schema without orphaning earlier captures.
+- `turn_id` — optional UUID grouping all `step_id`s that belong to the same operator-visible OpenClaw turn. Multiple chat-completion calls inside a single turn (tool-use rounds) share a `turn_id`. The precise definition of "turn" is deferred until we see real OpenClaw traces; in the meantime the inference shim writes one row per completion and groups by OpenClaw's session/event boundary.
+- `activation_meta` — capture-time metadata distinct from `label_probe_meta` (which is probe-training-time). Records token position, layers, dtype, and runtime so future replays can be interpreted unambiguously. `token_position` is a soft default (currently `last_input`) overridable per run.
+
 ### Activation Payload Schema: activations/{step_id}.npz
 To balance tracking overhead with storage performance, activation logging is compressed. We preserve tensor values evaluated at the **last action token** of a given sequence:
  * **Storage Pattern:** Compressed numpy zipped archives (np.savez_compressed).
