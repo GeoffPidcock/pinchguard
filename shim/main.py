@@ -40,7 +40,7 @@ SCHEMA_VERSION = "0.2"
 class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="allow")
     role: str
-    content: str
+    content: str | list | None = None
 
 
 class ChatCompletionRequest(BaseModel):
