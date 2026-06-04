@@ -23,9 +23,19 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+# Run as `python scripts/comment_session.py`, so sys.path[0] is scripts/, not the
+# repo root — put the repo root on the path so `tools.telemetry` (the shared
+# telemetry writer) is importable.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from tools.telemetry import append_record, telemetry_record  # noqa: E402
+
 SHIM_URL = os.environ.get("PINCHGUARD_SHIM_URL", "http://127.0.0.1:8000/v1/chat/completions")
 PERSONA_PATH = Path(os.environ.get("PINCHGUARD_PERSONA", "scenarios/01/SOUL.md"))
 MAX_TOKENS = int(os.environ.get("PINCHGUARD_MAX_NEW_TOKENS", "150"))
+# Cosmetic in the OpenAI request (the shim captures off its own loaded model,
+# not request.model) but logged into telemetry as the served model ref.
+MODEL_REF = os.environ.get("PINCHGUARD_MODEL_REF", "qwen2.5-7b-instruct")
+AGENT_ID = os.environ.get("PINCHGUARD_AGENT_ID", "cusco")
 
 TASK = (
     "\n\n## Your task right now\n"
@@ -40,7 +50,7 @@ TASK = (
 
 def post_chat(messages: list[dict], turn_id: str) -> dict:
     body = json.dumps(
-        {"model": "qwen2.5-0.5b-instruct", "messages": messages,
+        {"model": MODEL_REF, "messages": messages,
          "turn_id": turn_id, "max_tokens": MAX_TOKENS}
     ).encode()
     req = urllib.request.Request(
@@ -72,13 +82,39 @@ def main() -> int:
         resp = post_chat(history, turn_id)
         comment = resp["choices"][0]["message"]["content"].strip()
         history.append({"role": "assistant", "content": comment})
+        step_id = resp.get("pinchguard", {}).get("step_id")
         rec = {
             "i": i, "post_id": p.get("id"), "submolt": p.get("submolt_name"),
             "author": p.get("author", {}).get("name"), "title": p.get("title"),
-            "step_id": resp.get("pinchguard", {}).get("step_id"),
+            "step_id": step_id,
             "turn_id": turn_id, "comment": comment,
         }
         records.append(rec)
+
+        # OpenClaw telemetry sidecar. This harness writes the comment itself
+        # (a 0.5B model can't emit real tool_calls), so the "tool" is the comment
+        # action and `step_id` from the shim response makes the join to
+        # traces.jsonl exact. The real OpenClaw loop logs the same schema via the
+        # telemetry skill (scenarios/01/skills/telemetry).
+        append_record(
+            run_dir,
+            telemetry_record(
+                turn_index=i,
+                tool="moltbook.comment",
+                tool_args={
+                    "post_id": p.get("id"),
+                    "submolt": p.get("submolt_name"),
+                    "comment": comment[:280],
+                },
+                step_id=step_id,
+                turn_id=turn_id,
+                agent_id=AGENT_ID,
+                model_ref=MODEL_REF,
+                token_usage=resp.get("usage"),
+                source="comment_session_harness",
+            ),
+        )
+
         print(f"\n=== post {i}: @{rec['author']} — {str(rec['title'])[:70]} ===")
         print(f"COMMENT: {comment}")
 

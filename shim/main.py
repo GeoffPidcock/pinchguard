@@ -86,11 +86,18 @@ def _build_default_capturer() -> Capturer:
             from shim.capture import HFCapturer
 
             max_new_tokens = int(os.environ.get("PINCHGUARD_MAX_NEW_TOKENS", "64"))
+            # dtype/quantize default to None → float32 on CPU (the 0.5B path).
+            # The 7B-on-GPU run sets PINCHGUARD_DTYPE=float16 and usually
+            # PINCHGUARD_QUANTIZE=8bit (see scripts/run_session.sh).
+            dtype = os.environ.get("PINCHGUARD_DTYPE") or None
+            quantize = os.environ.get("PINCHGUARD_QUANTIZE") or None
             return HFCapturer(
                 model_name=model_name,
                 layers=layers,
                 token_position=token_position,
                 max_new_tokens=max_new_tokens,
+                dtype=dtype,
+                quantize=quantize,
             )
         except Exception as exc:  # pragma: no cover — environment-dependent
             if backend != "auto":

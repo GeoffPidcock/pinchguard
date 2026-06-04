@@ -153,6 +153,7 @@ class HFCapturer:
         token_position: str = DEFAULT_TOKEN_POSITION,
         max_new_tokens: int = 64,
         dtype: str | None = None,
+        quantize: str | None = None,
     ) -> None:
         import torch  # type: ignore[import-not-found]
         from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore[import-not-found]
@@ -162,22 +163,53 @@ class HFCapturer:
                 f"token_position={token_position!r} not yet supported "
                 "(only 'last_input' implemented)"
             )
+        if quantize not in (None, "", "8bit", "4bit"):
+            raise ValueError(f"quantize={quantize!r} not supported (use '8bit', '4bit', or unset)")
 
         self._torch = torch
         self.model_id = model_name
         self.layers = tuple(layers)
         self.token_position = token_position
         self.max_new_tokens = max_new_tokens
+        self.quantize = quantize or None
 
         load_dtype = getattr(torch, dtype) if dtype else torch.float32
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+
         # `low_cpu_mem_usage=True` skips the float32 init copy when we target
         # float16 — important on Codespaces, where total RAM is ~8 GiB and
         # the float32 spike OOMs even a 0.5B model.
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, dtype=load_dtype, low_cpu_mem_usage=True
-        )
+        model_kwargs: dict[str, Any] = {"low_cpu_mem_usage": True}
+        if self.quantize:
+            # bitsandbytes quantization. Qwen2.5-7B fp16 weights (~15 GB) don't
+            # leave room for the KV cache on a 16 GB GPU; 8-bit drops weights to
+            # ~7.6 GB. nnterp/forward hooks attach to *decoder-layer outputs*
+            # (compute dtype, fp16), not the quantised linear modules, so
+            # activation capture is unaffected by the weight quantization.
+            from transformers import BitsAndBytesConfig  # type: ignore[import-not-found]
+
+            if self.quantize == "8bit":
+                qconf = BitsAndBytesConfig(load_in_8bit=True)
+            else:
+                qconf = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=load_dtype if dtype else torch.float16,
+                )
+            model_kwargs["quantization_config"] = qconf
+            model_kwargs["device_map"] = "auto"
+        else:
+            model_kwargs["dtype"] = load_dtype
+            # Non-quantized: place the whole model on the GPU when one is visible
+            # (CUDA_VISIBLE_DEVICES="" pins to CPU, preserving the 0.5B path).
+            if torch.cuda.is_available():
+                model_kwargs["device_map"] = "cuda"
+
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
         self.model.eval()
+        # Execution device for inputs: first parameter's device works for both
+        # single-GPU placement and accelerate's `device_map="auto"` offloading.
+        self._device = next(self.model.parameters()).device
 
         self._layer_modules = self._resolve_layers()
         max_layer = len(self._layer_modules) - 1
@@ -203,7 +235,7 @@ class HFCapturer:
         prompt_text = self.tokenizer.apply_chat_template(
             _sanitize_messages(messages), tokenize=False, add_generation_prompt=True
         )
-        inputs = self.tokenizer(prompt_text, return_tensors="pt")
+        inputs = self.tokenizer(prompt_text, return_tensors="pt").to(self._device)
 
         captured: dict[int, Any] = {}
         handles = []
@@ -246,7 +278,7 @@ class HFCapturer:
             "token_position": self.token_position,
             "layers": list(self.layers),
             "dtype": DEFAULT_DTYPE,
-            "capture_runtime": "hf-eager",
+            "capture_runtime": f"hf-eager+{self.quantize}" if self.quantize else "hf-eager",
         }
         return CaptureResult(
             completion_text=completion,

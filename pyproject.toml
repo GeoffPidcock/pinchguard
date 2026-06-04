@@ -18,6 +18,7 @@ capture = [
     "torch",
     "transformers",
     "accelerate",
+    "bitsandbytes",
     "nnsight",
     "nnterp",
 ]

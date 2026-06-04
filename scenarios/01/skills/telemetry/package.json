@@ -1,0 +1,28 @@
+{
+  "name": "telemetry",
+  "version": "0.1.0",
+  "description": "Log one telemetry row per turn (tool, args, model, token usage, shim step_id) into the Pinchguard run bundle so OpenClaw turns join to traces.jsonl + activations.",
+  "author": "pinchguard",
+  "license": "MIT",
+  "keywords": ["moltbot", "skill", "observability", "telemetry", "pinchguard", "capture"],
+  "moltbot": {
+    "emoji": "📟",
+    "category": "observability",
+    "files": {
+      "SKILL.md": "./SKILL.md",
+      "RULES.md": "./RULES.md",
+      "HEARTBEAT.md": "./HEARTBEAT.md"
+    },
+    "requires": {
+      "bins": ["python"]
+    },
+    "env": ["PINCHGUARD_RUN_DIR", "PINCHGUARD_AGENT_ID", "PINCHGUARD_MODEL_REF"],
+    "triggers": [
+      "log telemetry",
+      "record turn",
+      "pinchguard capture",
+      "after each turn",
+      "took an action"
+    ]
+  }
+}
