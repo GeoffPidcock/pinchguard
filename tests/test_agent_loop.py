@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 _MODULE_PATH = (
-    Path(__file__).resolve().parents[1] / "notebooks" / "agent_loop.py"
+    Path(__file__).resolve().parents[1] / "notebooks" / "scenario_runner" / "agent_loop.py"
 )
 _spec = importlib.util.spec_from_file_location("agent_loop", _MODULE_PATH)
 agent_loop = importlib.util.module_from_spec(_spec)

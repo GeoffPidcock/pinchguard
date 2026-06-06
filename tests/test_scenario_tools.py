@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pytest
 
-# agent_tools lives next to the notebook under notebooks/, which is not an
-# importable package — load it by path.
+# agent_tools lives next to the notebook under notebooks/scenario_runner/, which
+# is not an importable package — load it by path.
 _MODULE_PATH = (
-    Path(__file__).resolve().parents[1] / "notebooks" / "agent_tools.py"
+    Path(__file__).resolve().parents[1] / "notebooks" / "scenario_runner" / "agent_tools.py"
 )
 _spec = importlib.util.spec_from_file_location("agent_tools", _MODULE_PATH)
 agent_tools = importlib.util.module_from_spec(_spec)
