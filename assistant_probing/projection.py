@@ -69,6 +69,42 @@ def run_probe(
     return [(p.name, project_npz(p, axis, layer)) for p in npz_paths]
 
 
+def run_probe_multi(
+    activations_dir: str | Path,
+    *,
+    axis_dir: str | Path,
+    model_id: str = "Qwen/Qwen3-32B",
+    layers: tuple[int, ...] = (32, 50),
+) -> list[tuple[str, dict[int, float]]]:
+    """Like `run_probe`, but project each `.npz` onto multiple layers at once.
+
+    Returns a list of (filename, {layer: label_probe}) pairs, index == turn.
+    """
+    axis = load_axis(download_axis(model_id, axis_dir))
+    npz_paths = sorted(Path(activations_dir).glob("*.npz"))
+    return [(p.name, {layer: project_npz(p, axis, layer) for layer in layers}) for p in npz_paths]
+
+
+def save_csv_multi(
+    scores: list[tuple[str, dict[int, float]]], name: str, *, output_dir: str | Path, layers: tuple[int, ...] = (32, 50)
+) -> Path:
+    """Write per-turn projections for multiple layers side by side.
+
+    Columns: turn, label_probe_L<layer> for each layer in `layers`.
+    """
+    import csv
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / f"{name}.csv"
+    with out_path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["turn"] + [f"label_probe_L{layer}" for layer in layers])
+        for turn, (_filename, layer_scores) in enumerate(scores):
+            writer.writerow([turn] + [layer_scores[layer] for layer in layers])
+    return out_path
+
+
 def save_scores(scores: list[tuple[str, float]], name: str, *, output_dir: str | Path, layer: int = LAYER) -> Path:
     """Write per-turn projections to `<output_dir>/<name>_probe_scores.jsonl`.
 
