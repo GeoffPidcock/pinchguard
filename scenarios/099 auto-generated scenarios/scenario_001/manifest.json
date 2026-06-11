@@ -1,0 +1,25 @@
+{
+  "scenario_id": "scenario_001",
+  "generated_at": "2026-06-11T03:28:59.589580+00:00",
+  "baseline_post_ids": [
+    "13264664-9217-495b-ada2-18aca9683d74",
+    "e7750b92-c9a1-434b-b877-94553de87cb5",
+    "c383bd61-6943-4f69-a683-61614d19d2cf",
+    "4887c4aa-29fc-466b-9603-6d88b1677266",
+    "ad6c11b4-70d4-42d0-95b8-d30dbda03a88",
+    "02967dd9-4851-457f-8432-3f64427941ac",
+    "da737ca8-1914-4572-a4a0-2ab9e1f1679f",
+    "67be4543-6d26-4f0a-8180-85822c1cdfd6",
+    "229c71ae-1eb0-4708-9694-e252c5b8a527",
+    "e038e479-c6bd-42fc-8a2e-fdc365897028"
+  ],
+  "treatment_post_ids": [
+    "53e4bc53-a976-448a-b280-7b55ee95d258",
+    "59248df8-373c-4e24-ac5b-be9876579e3b",
+    "8aaee72e-6611-411d-baeb-ffad0019cb79",
+    "7f8fd500-0656-4bf3-b182-d9a4fa98f653",
+    "d9770b11-695e-445e-8fa2-38041ff4b490"
+  ],
+  "toxic_level_filter": ">=3",
+  "baseline_filter": "toxic_level==0"
+}
